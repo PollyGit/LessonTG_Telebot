@@ -1,14 +1,11 @@
-# Бот прогноза погоды для конкретного пользователя и города пользователя
+# Телеграм-бота, который запрашивает у пользователя имя, возраст и класс.
+# Сохраняет введенные данные в таблицу students базы данных school_data.db.
 
 
 import asyncio
 # логгирование
 import logging
 import sqlite3
-
-# для сохранения состояния в оперативной памяти
-# для выполнения асинхронных HTTP-запросов
-import aiohttp
 # импортируем не всю библиотеку, а только Бот и Диспетчер
 # специальный класс F, который позволяет прописывать условия на получение сообщения
 from aiogram import Bot, Dispatcher
@@ -21,10 +18,8 @@ from aiogram.fsm.context import FSMContext
 # Библиотека для работы с состояниями
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message
+from configTG03hw import TOKEN
 
-from configTG03 import TOKEN, TOKEN2
-
-WEATHER_API_KEY = TOKEN2
 
 # Создадим объекты 2х этих классов:
 bot = Bot(token=TOKEN)
@@ -39,20 +34,20 @@ logging.basicConfig(level=logging.INFO)
 class Form(StatesGroup):
     name = State()
     age = State()
-    city = State()
+    grade = State()
 
 
 # создаем базу данных users, в которую будет
 # сохраняться информация от пользователя:
 def init_db():
-    conn = sqlite3.connect('user_data.db')  # Cоздать подключение к бд
+    conn = sqlite3.connect('school_data.db')  # Cоздать подключение к бд
     cur = conn.cursor()  # создаем курсор
     cur.execute('''
-        CREATE TABLE IF NOT EXISTS users (
+        CREATE TABLE IF NOT EXISTS school_data (
         id INTEGER PRIMARY KEY,
         name TEXT NOT NULL,
         age INTEGER NOT NULL,
-        city TEXT NOT NULL)''')
+        grade TEXT NOT NULL)''')
     # сохраняем изменения
     conn.commit()
     # закрываем подключение
@@ -82,54 +77,36 @@ async def name(message: Message, state: FSMContext):
 @dp.message(Form.age)
 async def age(message: Message, state: FSMContext):
     await state.update_data(age=message.text)
-    await message.answer("Из какого ты города?")
-    await state.set_state(Form.city)
+    await message.answer("Из какого ты класса?")
+    await state.set_state(Form.grade)
 
 
-@dp.message(Form.city)
+@dp.message(Form.grade)
 async def city(message: Message, state: FSMContext):
-    await state.update_data(city=message.text)
+    await state.update_data(grade=message.text)
     # сохраняет все данные, которые были сохранены в контексте состояния,
     # и из этого создает словарь
-    user_data = await state.get_data()
+    school_data = await state.get_data()
 
     # добавить информацию (в переменной user_data) в базу данных:
-    conn = sqlite3.connect('user_data.db')  # Подключение к БД
+    conn = sqlite3.connect('school_data.db')  # Подключение к БД
     cur = conn.cursor()  # Создаем курсор
     # INSERT INTO - вставляем данные в БД
     # Прописываем, что будет подставляться вместо
     # этих вопросительных знаков
     cur.execute('''
-       INSERT INTO users (name, age, city) VALUES (?, ?, ?)''',
-                (user_data['name'], user_data['age'], user_data['city']))
+       INSERT INTO school_data (name, age, grade) VALUES (?, ?, ?)''',
+                (school_data['name'], school_data['age'], school_data['grade']))
     conn.commit()  # Сохраняем
     conn.close()  # закрываем подключение
 
-    # создаем асинхронную сессию клиента
-    async with aiohttp.ClientSession() as session:
-        # выполняем HTTP-запрос с помощью метода get
-        async with session.get(
-                f"http://api.openweathermap.org/data/2.5/weather?q={user_data['city']}&appid={WEATHER_API_KEY}&units=metric") as response:
-            if response.status == 200:
-                weather_data = await response.json()
-                main = weather_data['main']
-                # азбираем данные из формата json
-                weather = weather_data['weather'][0]
-                temperature = main['temp']
-                humidity = main['humidity']
-                description = weather['description']
-
-                # Сохраняем все в одно сообщение
-                weather_report = (f"Город - {user_data['city']}\n"
-                                  f"Температура - {temperature}\n"
-                                  f"Влажность воздуха - {humidity}\n"
-                                  f"Описание погоды - {description}")
-                # Отправляем сообщение
-                await message.answer(weather_report)
-            else:
-                await message.answer("Не удалось получить данные о погоде")
-        # очистить состояния
-        await state.clear()
+    student_report = (f"Класс - {school_data['grade']}\n"
+                      f"Имя - {school_data['name']}\n"
+                      f"Возраст - {school_data['age']}\n")
+    # Отправляем сообщение
+    await message.answer(student_report)
+    # очистить состояния
+    await state.clear()
 
 
 # Создадим асинхронную функцию main, которая будет запускать наш бот
