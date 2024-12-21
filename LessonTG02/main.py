@@ -10,7 +10,15 @@ from aiogram import Bot, Dispatcher, F
 # Чтобы отслеживать команды, нужно импортировать фильтры и типы сообщений
 # FSInputFileОн необходим для обработки файлов и их отправки в aiogram.
 from aiogram.filters import CommandStart, Command
+from aiogram.filters import StateFilter
+# Библиотеки лоя использования контекстного состояния
+# StateFilter` используется для того, чтобы обработчик срабатывал
+# только тогда, когда пользователь находится в определенном состоянии.
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import Message, FSInputFile
+# Для перевода текста устанавливаем модуль googletrans vers 3.1.0a0 и импортируем библиотеку
+from googletrans import Translator
 # gtts - спец библиотека для озвучки текста Google TTS
 from gtts import gTTS
 
@@ -18,18 +26,26 @@ from gtts import gTTS
 from config import TOKEN, TOKEN2
 
 
+# Здесь сопутствующие функции:
+#
+# Функция для парсинга погоды в нужном городе
 # в функции прописываем город, который мы будем вводить в форме
 def get_weather(city):
     # личный апи ключ с сайта
     api_key = TOKEN2
-    # city = 'Moscow'
-    city = 'Sankt Petersburg'
     # адрес, по которомы мы будем отправлять запрос. Не забываем указывать f строку.
     url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={api_key}&units=metric"
     # для получения результата нам понадобится модуль requests
     response = requests.get(url)
     # прописываем формат json возврата результата
     return response.json()
+
+
+# Функция перевода текста с русского на английский
+def translate_this(word):
+    translator = Translator()
+    result = translator.translate(word, dest='en')
+    return result.text
 
 
 # Bot и Dispatcher — это два компонента, которые есть в aiogram.
@@ -40,6 +56,11 @@ def get_weather(city):
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
+
+# Для работы с контекстным состоянием
+class Form(StatesGroup):
+    city = State()  # Состояние для ввода города
+    translate = State()  # Состояние для ввода текста для перевода
 
 # 1
 # Создадим декоратор для обработки команды /start
@@ -57,29 +78,64 @@ async def start(message: Message):  # (атрибут: Тип данных)
 # хендлер для “отлавливания” команды help
 @dp.message(Command('help'))
 async def help(message: Message):
-    await message.answer("Этот бот умеет выполнять команды:\n/start \n/help \n/photo \n/weather \n/town \nvideo \naudio \ntraining \ndoc")
+    await message.answer(
+        "Этот бот умеет выполнять команды:\n/start \n/help \n/photo \n/weather \n/town \n/video \n/audio \n/training \n/doc \n/translate ")
 
 
 # 3
 # хендлер для “отлавливания” команды погода
 @dp.message(Command('weather'))
 async def weather(message: Message):
-    city = 'Sankt Petersburg'
+    city = 'Санкт-Петербург'
     weather_data = get_weather(city)
     if weather_data.get("main") and weather_data.get("weather"):
         temperature = weather_data["main"]["temp"]
         weather_description = weather_data["weather"][0]["description"]
-        await message.answer(f"Погода такая в {city}: {temperature}°C, {weather_description}")
+        await message.answer(f"Погода в городе {city} такая: {temperature}°C, {weather_description}")
     else:
         await message.answer("Не удалось получить данные о погоде.")
 
+
+# 3_1
+@dp.message(Command('town'))
+async def ask_city(message: Message, state: FSMContext):
+    await message.answer("Пожалуйста, введите название города:")
+    await state.set_state(Form.city)
+
+
+@dp.message(StateFilter(Form.city))
+async def get_city_and_weather(message: Message, state: FSMContext):
+    city = message.text
+    weather_data = get_weather(city)
+    if weather_data.get("main") and weather_data.get("weather"):
+        temperature = weather_data["main"]["temp"]
+        weather_description = weather_data["weather"][0]["description"]
+        await message.answer(f"Погода в городе {city} такая: {temperature}°C, {weather_description}")
+    else:
+        await message.answer("Не удалось получить данные о погоде.")
+    await state.clear()
+
+
+# 14
+@dp.message(Command('translate'))
+async def ask_translate(message: Message, state: FSMContext):
+    await message.answer("Пожалуйста, введите текст для перевода:")
+    await state.set_state(Form.translate)
+
+
+@dp.message(StateFilter(Form.translate))
+async def translate(message: Message, state: FSMContext):
+    sms_ru = message.text
+    sms_eng = translate_this(sms_ru)
+    await message.answer(sms_eng)
+    await state.clear()
 
 # 4
 # Создадим асинхронную функцию main, которая будет запускать наш бот
 async def main():
     # действие, которое происходит с Telegram-ботом
     await dp.start_polling(bot)
-    # dp.start_polling - рограмма будет отправлять запрос в Telegram, проверяя,
+    # dp.start_polling - программа будет отправлять запрос в Telegram, проверяя,
     # есть ли входящие сообщения и произошедшие события.
 
 
@@ -210,26 +266,26 @@ async def doc(message: Message):
 
 # 8
 # Универсальный обработчик сообщений, универсальный декоратор
-@dp.message()
-async def sms(message: Message):
-    await message.answer("Я тебе ответил")
+# @dp.message()
+# async def sms(message: Message):
+#     await message.answer("Я тебе ответил")
 
 
 # 8_2
 # Отслеживание сообщений с помощью условного оператора
-@dp.message()
-async def sms(message: Message):
-    if message.text.lower() == 'test':
-        await message.answer('Тестируем')
+# @dp.message()
+# async def sms(message: Message):
+#     if message.text.lower() == 'test':
+#         await message.answer('Тестируем')
 
 
 # 8_1
 # ЭХО бот
 # Указан id чата, откуда получили сообщение и отвечаем
 # Его добавлять в код в самом низу
-@dp.message()
-async def echo(message: Message):
-    await message.send_copy(chat_id=message.chat.id)
+# @dp.message()
+# async def echo(message: Message):
+#     await message.send_copy(chat_id=message.chat.id)
 
 
 if __name__ == "__main__":
