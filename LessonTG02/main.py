@@ -41,10 +41,16 @@ def get_weather(city):
     return response.json()
 
 
-# Функция перевода текста с русского на английский
+# Функция перевода текста с любого языка на английский
 def translate_this(word):
     translator = Translator()
     result = translator.translate(word, dest='en')
+    return result.text
+
+# Функция перевода текста на португальский
+def translate_pt(word):
+    translator = Translator()
+    result = translator.translate(word, dest='pt')
     return result.text
 
 
@@ -61,6 +67,7 @@ dp = Dispatcher()
 class Form(StatesGroup):
     city = State()  # Состояние для ввода города
     translate = State()  # Состояние для ввода текста для перевода
+    translate_pt = State()
 
 # 1
 # Создадим декоратор для обработки команды /start
@@ -79,7 +86,7 @@ async def start(message: Message):  # (атрибут: Тип данных)
 @dp.message(Command('help'))
 async def help(message: Message):
     await message.answer(
-        "Этот бот умеет выполнять команды:\n/start \n/help \n/photo \n/weather \n/town \n/video \n/audio \n/training \n/doc \n/translate ")
+        "Этот бот умеет выполнять команды:\n/start \n/help \n/photo \n/weather \n/town \n/video \n/audio \n/training \n/doc \n/translate \n/translate_pt ")
 
 
 # 3
@@ -128,6 +135,19 @@ async def translate(message: Message, state: FSMContext):
     sms_ru = message.text
     sms_eng = translate_this(sms_ru)
     await message.answer(sms_eng)
+    await state.clear()
+
+
+@dp.message(Command('translate_pt'))
+async def ask_translate(message: Message, state: FSMContext):
+    await message.answer("Пожалуйста, введите текст для перевода на португальский:")
+    await state.set_state(Form.translate_pt)
+
+@dp.message(StateFilter(Form.translate_pt))
+async def translate(message: Message, state: FSMContext):
+    sms_ru = message.text
+    sms_pt = translate_pt(sms_ru)
+    await message.answer(sms_pt)
     await state.clear()
 
 # 4
