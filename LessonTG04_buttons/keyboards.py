@@ -25,7 +25,7 @@ inline_keyboard_test = InlineKeyboardMarkup(inline_keyboard=[
 ])
 
 # inline_keyboard_test = InlineKeyboardMarkup(inline_keyboard=[
-#    [InlineKeyboardButton(text="Видео", url='<https://www.youtube.com/watch?v=HfaIcB4Ogxk>')]
+#    [InlineKeyboardButton(text="Видео", url='https://www.youtube.com/watch?v=HfaIcB4Ogxk')]
 # ])
 
 
@@ -51,5 +51,5 @@ async def test_keyboard():
 async def test_keyboard_inline():
    keyboard_in = InlineKeyboardBuilder()
    for key in test:
-       keyboard_in.add(InlineKeyboardButton(text=key, url='<https://www.youtube.com/watch?v=HfaIcB4Ogxk>'))
+       keyboard_in.add(InlineKeyboardButton(text=key, url='https://www.youtube.com/watch?v=HfaIcB4Ogxk'))
    return keyboard_in.adjust(2).as_markup()
